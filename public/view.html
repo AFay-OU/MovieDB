@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link href="style.css" rel="stylesheet" />
+    <link rel="icon" type="image/png" href="Clapper.png" />
+    <title>Movie DB</title>
+  </head>
+  <body>
+    <h1>All Movies</h1>
+
+    <table id="movie-table">
+      <tr>
+        <th>ID</th>
+        <th>Title</th>
+        <th>Release Date</th>
+        <th>Category</th>
+        <th>Rating</th>
+        <th>Runtime</th>
+      </tr>
+    </table>
+
+    <script>
+      async function loadMovies() {
+        const res = await fetch("/api/movies");
+        const movies = await res.json();
+
+        const table = document.getElementById("movie-table");
+
+        movies.forEach((m) => {
+          const row = document.createElement("tr");
+
+          row.innerHTML = `
+      <td>${m.movie_id}</td>
+      <td>${m.title}</td>
+      <td>${m.release_date || ""}</td>
+      <td>${m.category || ""}</td>
+      <td>${m.rating || ""}</td>
+      <td>${m.run_time || ""}</td>
+    `;
+
+          table.appendChild(row);
+        });
+      }
+
+      loadMovies();
+    </script>
+  </body>
+</html>
