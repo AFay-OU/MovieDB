@@ -10,13 +10,13 @@ A Javascript/HTML project implementing SQL functions
 
 1. In the Terminal
 
-'''
-("Git clone https://github.com/AFay-OU/MovieDB.git
-'''
+```
+Git clone https://github.com/AFay-OU/MovieDB.git
+```
 
 3. Open the Downloaded Folder and in the Terminal
-   '''
+   ```
    npm install
    node server.js
-   '''
+   ```
 
