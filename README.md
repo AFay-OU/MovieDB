@@ -8,10 +8,10 @@ A Javascript/HTML project implementing SQL functions
 
 [Sqlite3](https://www.npmjs.com/package/sqlite): SQL library
 
-<ins>In the Terminal</ins>
-*Git clone https://github.com/AFay-OU/MovieDB.git*
+- In the Terminal
+- *Git clone https://github.com/AFay-OU/MovieDB.git*
 
-<ins>Open the Downloaded Folder and in the Terminal</ins>
-*npm install*
-*node server.js*
+- Open the Downloaded Folder and in the Terminal
+- *npm install*
+- *node server.js*
 
