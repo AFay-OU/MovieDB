@@ -37,12 +37,6 @@ app.post("/api/movie", (req, res) => {
 app.post("/api/person", async (req, res) => {
   const { person, movie_id } = req.body;
 
-  if (!movie_id) {
-    return res
-      .status(400)
-      .json({ error: "A person must be linked to a movie." });
-  }
-
   if (!person.first_name || !person.last_name || !person.pay || !person.type) {
     return res.status(400).json({ error: "Incomplete person data." });
   }
@@ -80,13 +74,23 @@ app.post("/api/person", async (req, res) => {
       )
     );
 
-    await new Promise((resolve, reject) =>
-      linkMoviePerson(movie_id, personId, (err) =>
-        err ? reject(err) : resolve()
-      )
-    );
+    if (movie_id) {
+      await new Promise((resolve, reject) =>
+        linkMoviePerson(movie_id, personId, (err) =>
+          err ? reject(err) : resolve()
+        )
+      );
 
-    res.json({ message: "Person added and linked to movie." });
+      return res.json({
+        message: "Person added and linked to movie.",
+        person_id: personId,
+      });
+    }
+
+    return res.json({
+      message: "Person added (not linked to any movie).",
+      person_id: personId,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
