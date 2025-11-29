@@ -5,36 +5,135 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link href="style.css" rel="stylesheet" />
     <link rel="icon" type="image/png" href="Clapper.png" />
-    <title>Movie DB</title>
+    <title>Add Movie / Person</title>
   </head>
+
   <body>
-    <h1>Add Movie</h1>
+    <h1>Add Data</h1>
 
     <div class="form-container">
-      <label>Title:</label>
-      <input type="text" id="title" />
+      <label><strong>Select Action:</strong></label>
+      <select id="modeSelect" onchange="updateMode()">
+        <option value="movie">Add Movie</option>
+        <option value="person">Add Person</option>
+        <option value="both">Add Movie + Person</option>
+      </select>
 
-      <label>Release Date:</label>
-      <input type="date" id="release_date" />
+      <hr />
 
-      <label>Runtime (minutes):</label>
-      <input type="number" id="run_time" />
+      <div id="movieSection">
+        <h2>Movie Information</h2>
 
-      <label>Rating (0 - 100):</label>
-      <input type="number" id="rating" min="0" max="100" />
+        <label>Title:</label>
+        <input type="text" id="title" />
 
-      <label>Category:</label>
-      <input type="text" id="category" />
+        <label>Release Date:</label>
+        <input type="date" id="release_date" />
 
-      <label>Synopsis:</label>
-      <textarea id="synopsis"></textarea>
+        <label>Runtime (minutes):</label>
+        <input type="number" id="run_time" min="1" />
 
-      <button onclick="submitMovie()">Add Movie</button>
+        <label>Rating (0 - 100):</label>
+        <input type="number" id="rating" min="0" max="100" />
+
+        <label>Category:</label>
+        <input type="text" id="category" />
+
+        <label>Synopsis:</label>
+        <textarea id="synopsis"></textarea>
+      </div>
+
+      <div id="personSection" style="display: none">
+        <h2>Person Information</h2>
+
+        <label>Person Type:</label>
+        <select id="person_type" onchange="loadPersonFields()">
+          <option value="">-- Select Type --</option>
+          <option value="actor">Actor</option>
+          <option value="actress">Actress</option>
+          <option value="director">Director</option>
+          <option value="writer">Writer</option>
+          <option value="producer">Producer</option>
+        </select>
+
+        <label>First Name:</label>
+        <input type="text" id="first_name" />
+
+        <label>Last Name:</label>
+        <input type="text" id="last_name" />
+
+        <label>Pay Amount:</label>
+        <input type="number" id="pay" min="0" />
+
+        <label>Add Person to Existing Movie (optional):</label>
+        <select id="movieSelect">
+          <option value="">-- Do Not Link to a Movie --</option>
+        </select>
+
+        <div id="role_fields"></div>
+      </div>
+
+      <hr />
+
+      <button onclick="submitData()">Submit</button>
     </div>
 
     <script>
-      async function submitMovie() {
-        // Collect data from inputs
+      function updateMode() {
+        const mode = document.getElementById("modeSelect").value;
+
+        document.getElementById("movieSection").style.display =
+          mode === "movie" || mode === "both" ? "block" : "none";
+
+        document.getElementById("personSection").style.display =
+          mode === "person" || mode === "both" ? "block" : "none";
+      }
+
+      function loadPersonFields() {
+        const type = document.getElementById("person_type").value;
+        const container = document.getElementById("role_fields");
+        container.innerHTML = "";
+
+        if (type === "actor" || type === "actress") {
+          container.innerHTML = `
+            <label>Role:</label>
+            <input type="text" id="role" />
+          `;
+        } else if (type === "writer") {
+          container.innerHTML = `
+            <label>Contribution:</label>
+            <input type="text" id="contribution" />
+          `;
+        } else if (type === "director" || type === "producer") {
+          container.innerHTML = `
+            <label>Position:</label>
+            <input type="text" id="position" />
+          `;
+        }
+      }
+
+      async function loadMovieList() {
+        const res = await fetch("/api/movies");
+        const movies = await res.json();
+
+        const dropdown = document.getElementById("movieSelect");
+        dropdown.innerHTML = `
+        <option value="">-- Do Not Link to a Movie --</option>
+        `;
+
+        movies.forEach((m) => {
+          const opt = document.createElement("option");
+          opt.value = m.movie_id;
+          opt.textContent = `${m.movie_id} — ${m.title}`;
+          dropdown.appendChild(opt);
+        });
+      }
+
+      loadMovieList();
+
+      async function submitData() {
+        const mode = document.getElementById("modeSelect").value;
+
         const movie = {
           title: document.getElementById("title").value,
           release_date: document.getElementById("release_date").value,
@@ -44,16 +143,68 @@
           category: document.getElementById("category").value,
         };
 
-        // Send to server (Node + SQLite)
-        const movieRes = await fetch("/api/movie", {
+        const person = {
+          type: document.getElementById("person_type").value,
+          first_name: document.getElementById("first_name").value,
+          last_name: document.getElementById("last_name").value,
+          pay: document.getElementById("pay").value,
+          role: document.getElementById("role")?.value || null,
+          contribution: document.getElementById("contribution")?.value || null,
+          position: document.getElementById("position")?.value || null,
+        };
+
+        if (mode === "movie") {
+          if (!movie.title) return alert("Movie title required.");
+          return submitMovieOnly(movie);
+        }
+
+        if (mode === "person") {
+          if (!person.first_name || !person.last_name || !person.type)
+            return alert("Person information incomplete.");
+          return submitPersonOnly(person);
+        }
+
+        if (mode === "both") {
+          if (!movie.title) return alert("Movie title required.");
+          if (!person.type || !person.first_name || !person.last_name)
+            return alert("Person info required.");
+          return submitMovieAndPerson(movie, person);
+        }
+      }
+
+      async function submitMovieOnly(movie) {
+        const res = await fetch("/api/movie", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(movie),
         });
 
-        const movieData = await movieRes.json();
+        const data = await res.json();
+        alert("Movie added with ID: " + data.movie_id);
+      }
 
-        alert("Movie added with ID: " + movieData.movie_id);
+      async function submitPersonOnly(person) {
+        const movieId = document.getElementById("movieSelect").value;
+
+        const res = await fetch("/api/person", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ person, movie_id: movieId }),
+        });
+
+        const data = await res.json();
+        alert(data.message || "Person added.");
+      }
+
+      async function submitMovieAndPerson(movie, person) {
+        const res = await fetch("/api/addMovieAndPerson", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ movie, person }),
+        });
+
+        const data = await res.json();
+        alert(data.message || "Movie and Person added.");
       }
     </script>
   </body>

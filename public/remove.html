@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Remove Records</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+
+  <body>
+    <div class="remove-container">
+      <h1>Remove Records</h1>
+
+      <h2>Delete Movie</h2>
+      <select id="movieSelect">
+        <option value="">-- Select Movie --</option>
+      </select>
+      <button onclick="deleteMovie()">Delete Movie</button>
+
+      <h2>Delete Person</h2>
+      <select id="personSelect">
+        <option value="">-- Select Person --</option>
+      </select>
+      <button onclick="deletePerson()">Delete Person</button>
+
+      <h2>Remove Movie–Person Link</h2>
+      <label>Select Movie:</label>
+      <select id="mpMovieSelect">
+        <option value="">-- Select Movie --</option>
+      </select>
+
+      <label>Select Person:</label>
+      <select id="mpPersonSelect">
+        <option value="">-- Select Person --</option>
+      </select>
+
+      <button onclick="deleteAttachment()">Remove Link</button>
+
+      <script>
+        async function loadMovies() {
+          const res = await fetch("/api/movies");
+          const movies = await res.json();
+
+          const movieDropdowns = [
+            document.getElementById("movieSelect"),
+            document.getElementById("mpMovieSelect"),
+          ];
+
+          movieDropdowns.forEach((dropdown) => {
+            dropdown.innerHTML = `<option value="">-- Select Movie --</option>`;
+            movies.forEach((m) => {
+              const opt = document.createElement("option");
+              opt.value = m.movie_id;
+              opt.textContent = `${m.title} (${m.movie_id})`;
+              dropdown.appendChild(opt);
+            });
+          });
+        }
+
+        async function loadPersons() {
+          const res = await fetch("/api/persons");
+          const persons = await res.json();
+
+          const personDropdowns = [
+            document.getElementById("personSelect"),
+            document.getElementById("mpPersonSelect"),
+          ];
+
+          personDropdowns.forEach((dropdown) => {
+            dropdown.innerHTML = `<option value="">-- Select Person --</option>`;
+            persons.forEach((p) => {
+              const opt = document.createElement("option");
+              opt.value = p.person_id;
+              opt.textContent = `${p.first_name} ${p.last_name} (${p.person_id})`;
+              dropdown.appendChild(opt);
+            });
+          });
+        }
+
+        loadMovies();
+        loadPersons();
+
+        async function deleteMovie() {
+          const id = document.getElementById("movieSelect").value;
+          if (!id) return alert("Please select a movie.");
+
+          const res = await fetch(`/api/movie/${id}`, { method: "DELETE" });
+          const data = await res.json();
+          alert(data.message);
+
+          loadMovies();
+        }
+
+        async function deletePerson() {
+          const id = document.getElementById("personSelect").value;
+          if (!id) return alert("Please select a person.");
+
+          const res = await fetch(`/api/person/${id}`, { method: "DELETE" });
+          const data = await res.json();
+          alert(data.message);
+
+          loadPersons();
+        }
+
+        async function deleteAttachment() {
+          const movie = document.getElementById("mpMovieSelect").value;
+          const person = document.getElementById("mpPersonSelect").value;
+
+          if (!movie || !person) return alert("Choose a movie and a person.");
+
+          const res = await fetch(`/api/movie-person`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ movie_id: movie, person_id: person }),
+          });
+
+          const data = await res.json();
+          alert(data.message);
+        }
+      </script>
+    </div>
+  </body>
+</html>

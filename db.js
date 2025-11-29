@@ -14,7 +14,7 @@ sqlite3.verbose();
 
 const dbPath = path.join(dataDir, "MovieDB.db");
 
-// Create database file
+// Create a database file
 const db = new sqlite3.Database(dbPath, (err) => {
   if (err) console.error("DB connection error:", err.message);
   else console.log("Connected to MovieDB.db at", dbPath);
@@ -25,54 +25,59 @@ db.run("PRAGMA foreign_keys = ON");
 
 const tables = `
 CREATE TABLE IF NOT EXISTS movie (
-  movie_id  INTEGER PRIMARY KEY AUTOINCREMENT,
+  movie_id INTEGER PRIMARY KEY AUTOINCREMENT,
   title TEXT NOT NULL,
-  release_date  DATE,
-  synopsis  TEXT,
-  rating  INTEGER,
-  run_time  INTEGER,
-  category  TEXT
+  release_date DATE,
+  synopsis TEXT,
+  rating INTEGER,
+  run_time INTEGER,
+  category TEXT
 );
 
 CREATE TABLE IF NOT EXISTS person (
   person_id INTEGER PRIMARY KEY AUTOINCREMENT,
-  p_name  TEXT NOT NULL
+  first_name TEXT NOT NULL,
+  last_name TEXT NOT NULL,
+  pay REAL NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS movie_producer (
-  movie_id  INTEGER NOT NULL,
+CREATE TABLE IF NOT EXISTS actor (
+  actor_id INTEGER PRIMARY KEY AUTOINCREMENT,
   person_id INTEGER NOT NULL,
-  PRIMARY KEY (movie_id, person_id),
-  FOREIGN KEY (movie_id) REFERENCES movie(movie_id),
+  role TEXT NOT NULL,
   FOREIGN KEY (person_id) REFERENCES person(person_id)
 );
 
-CREATE TABLE IF NOT EXISTS movie_actor (
-  movie_id  INTEGER NOT NULL,
+CREATE TABLE IF NOT EXISTS actress (
+  actress_id INTEGER PRIMARY KEY AUTOINCREMENT,
   person_id INTEGER NOT NULL,
-  PRIMARY KEY (movie_id, person_id),
-  FOREIGN KEY (movie_id) REFERENCES movie(movie_id),
+  role TEXT NOT NULL,
   FOREIGN KEY (person_id) REFERENCES person(person_id)
 );
 
-CREATE TABLE IF NOT EXISTS movie_actress (
-  movie_id  INTEGER NOT NULL,
+CREATE TABLE IF NOT EXISTS writer (
+  writer_id INTEGER PRIMARY KEY AUTOINCREMENT,
   person_id INTEGER NOT NULL,
-  PRIMARY KEY (movie_id, person_id),
-  FOREIGN KEY (movie_id) REFERENCES movie(movie_id),
+  contribution TEXT NOT NULL,
   FOREIGN KEY (person_id) REFERENCES person(person_id)
 );
 
-CREATE TABLE IF NOT EXISTS movie_director (
-  movie_id  INTEGER NOT NULL,
+CREATE TABLE IF NOT EXISTS director (
+  director_id INTEGER PRIMARY KEY AUTOINCREMENT,
   person_id INTEGER NOT NULL,
-  PRIMARY KEY (movie_id, person_id),
-  FOREIGN KEY (movie_id) REFERENCES movie(movie_id),
+  position TEXT NOT NULL,
   FOREIGN KEY (person_id) REFERENCES person(person_id)
 );
 
-CREATE TABLE IF NOT EXISTS movie_writer (
-  movie_id  INTEGER NOT NULL,
+CREATE TABLE IF NOT EXISTS producer (
+  producer_id INTEGER PRIMARY KEY AUTOINCREMENT,
+  person_id INTEGER NOT NULL,
+  position TEXT NOT NULL,
+  FOREIGN KEY (person_id) REFERENCES person(person_id)
+);
+
+CREATE TABLE IF NOT EXISTS movie_person (
+  movie_id INTEGER NOT NULL,
   person_id INTEGER NOT NULL,
   PRIMARY KEY (movie_id, person_id),
   FOREIGN KEY (movie_id) REFERENCES movie(movie_id),
@@ -83,35 +88,99 @@ CREATE TABLE IF NOT EXISTS movie_writer (
 // Executes the above SQL command
 db.exec(tables, (err) => {
   if (err) console.error("Error creating tables:", err.message);
-  else console.log("Tables created successfully!");
+  else console.log("Tables created.");
 });
 
 // Helper functions
-export function getMovies(callback) {
-  db.all(`SELECT * FROM movie`, [], callback);
-}
-
-export function addMovie(movie, callback) {
+export function addMovie(values, callback) {
   const sql = `
     INSERT INTO movie (title, release_date, synopsis, rating, run_time, category)
     VALUES (?, ?, ?, ?, ?, ?)
   `;
-
-  db.run(sql, movie, function (err) {
-    if (err) {
-      console.error("DB INSERT ERROR:", err.message);
-      callback(err, null);
-    } else {
-      console.log("Inserted movie with ID:", this.lastID);
-      callback(null, this.lastID);
-    }
+  db.run(sql, values, function (err) {
+    callback(err, this?.lastID);
   });
 }
 
-export function linkRole(table, movieId, personId, callback) {
-  const sql = `INSERT INTO ${table} (movie_id, person_id) VALUES (?, ?)`;
+export function addPerson(values, callback) {
+  const sql = `
+    INSERT INTO person (first_name, last_name, pay)
+    VALUES (?, ?, ?)
+  `;
+  db.run(sql, values, function (err) {
+    callback(err, this?.lastID);
+  });
+}
+
+export function linkMoviePerson(movieId, personId, callback) {
+  const sql = `
+    INSERT INTO movie_person (movie_id, person_id)
+    VALUES (?, ?)
+  `;
   db.run(sql, [movieId, personId], callback);
 }
 
-// Export db const to be use elsewhere
+export function addJobRecord(table, data, callback) {
+  const sql = `
+    INSERT INTO ${table} (person_id, ${data.field})
+    VALUES (?, ?)
+  `;
+  db.run(sql, [data.personId, data.value], callback);
+}
+
+export function getMovies(callback) {
+  db.all("SELECT * FROM movie", [], callback);
+}
+
+export function deleteMovieAndLinks(movieId, callback) {
+  db.serialize(() => {
+    db.run(
+      "DELETE FROM movie_person WHERE movie_id = ?",
+      [movieId],
+      function (err) {
+        if (err) return callback(err);
+
+        db.run(
+          "DELETE FROM movie WHERE movie_id = ?",
+          [movieId],
+          function (err2) {
+            callback(err2);
+          }
+        );
+      }
+    );
+  });
+}
+
+export function deletePersonAndLinks(personId, callback) {
+  db.serialize(() => {
+    const jobTables = ["actor", "actress", "writer", "director", "producer"];
+
+    let remaining = jobTables.length + 2;
+
+    const done = (err) => {
+      if (err) return callback(err);
+      remaining--;
+      if (remaining === 0) callback(null);
+    };
+
+    jobTables.forEach((table) => {
+      db.run(`DELETE FROM ${table} WHERE person_id = ?`, [personId], done);
+    });
+
+    db.run("DELETE FROM movie_person WHERE person_id = ?", [personId], done);
+
+    db.run("DELETE FROM person WHERE person_id = ?", [personId], done);
+  });
+}
+
+export function deleteAttachment(movieId, personId, callback) {
+  const sql = `
+    DELETE FROM movie_person
+    WHERE movie_id = ? AND person_id = ?
+  `;
+  db.run(sql, [movieId, personId], callback);
+}
+
+// Export db const to be used elsewhere
 export default db;

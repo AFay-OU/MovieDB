@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Debug View</title>
+    <link rel="stylesheet" href="style.css" />
+
+    <style>
+      h1,
+      h2 {
+        text-align: center;
+        color: antiquewhite;
+        margin-top: 25px;
+      }
+
+      table {
+        margin-top: 20px;
+        width: 90%;
+        color: antiquewhite;
+      }
+
+      .section {
+        margin: 40px auto;
+        width: 90%;
+      }
+
+      button.refresh {
+        margin: 10px auto;
+        display: block;
+        padding: 8px 16px;
+      }
+
+      tr:hover {
+        background-color: rgba(255, 255, 255, 0.15);
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Database View</h1>
+
+    <!-- MOVIES SECTION -->
+    <div class="section">
+      <h2>All Movies</h2>
+      <button class="refresh" onclick="loadMovies()">Refresh Movies</button>
+      <table id="moviesTable">
+        <tr>
+          <th>ID</th>
+          <th>Title</th>
+          <th>Release Date</th>
+          <th>Category</th>
+          <th>Rating</th>
+        </tr>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>All Persons</h2>
+      <button class="refresh" onclick="loadPersons()">Refresh Persons</button>
+      <table id="personsTable">
+        <tr>
+          <th>ID</th>
+          <th>First</th>
+          <th>Last</th>
+          <th>Pay</th>
+        </tr>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>Movie–Person Attachments (movie_person)</h2>
+      <button class="refresh" onclick="loadMoviePersons()">
+        Refresh Links
+      </button>
+      <table id="linksTable">
+        <tr>
+          <th>Movie ID</th>
+          <th>Person ID</th>
+        </tr>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2>Details</h2>
+      <table id="detailsTable"></table>
+    </div>
+
+    <script>
+      async function loadMovies() {
+        const res = await fetch("/api/movies");
+        const movies = await res.json();
+
+        const table = document.getElementById("moviesTable");
+        table.innerHTML = `
+      <tr>
+        <th>ID</th>
+        <th>Title</th>
+        <th>Release Date</th>
+        <th>Category</th>
+        <th>Rating</th>
+      </tr>
+    `;
+
+        movies.forEach((m) => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+        <td>${m.movie_id}</td>
+        <td>${m.title}</td>
+        <td>${m.release_date || ""}</td>
+        <td>${m.category || ""}</td>
+        <td>${m.rating || ""}</td>
+      `;
+          row.onclick = () => loadMovieDetails(m.movie_id);
+          table.appendChild(row);
+        });
+      }
+
+      async function loadPersons() {
+        const res = await fetch("/api/persons");
+        const persons = await res.json();
+
+        const table = document.getElementById("personsTable");
+        table.innerHTML = `
+      <tr>
+        <th>ID</th>
+        <th>First</th>
+        <th>Last</th>
+        <th>Pay</th>
+      </tr>
+    `;
+
+        persons.forEach((p) => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+        <td>${p.person_id}</td>
+        <td>${p.first_name}</td>
+        <td>${p.last_name}</td>
+        <td>${p.pay}</td>
+      `;
+          row.onclick = () => loadPersonDetails(p.person_id);
+          table.appendChild(row);
+        });
+      }
+
+      async function loadMoviePersons() {
+        const res = await fetch("/api/movie-person");
+        const links = await res.json();
+
+        const table = document.getElementById("linksTable");
+        table.innerHTML = `
+      <tr>
+        <th>Movie ID</th>
+        <th>Person ID</th>
+      </tr>
+    `;
+
+        links.forEach((x) => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+        <td>${x.movie_id}</td>
+        <td>${x.person_id}</td>
+      `;
+          row.onclick = () => {
+            loadMovieDetails(x.movie_id);
+            loadPersonDetails(x.person_id);
+          };
+          table.appendChild(row);
+        });
+      }
+
+      async function loadMovieDetails(movieId) {
+        const res = await fetch(`/api/movie/${movieId}/persons`);
+        const persons = await res.json();
+
+        const table = document.getElementById("detailsTable");
+        table.innerHTML = `
+      <tr><th colspan="5">Persons Attached to Movie ${movieId}</th></tr>
+      <tr>
+        <th>First</th>
+        <th>Last</th>
+        <th>Pay</th>
+        <th>Role</th>
+        <th>Detail</th>
+      </tr>
+    `;
+
+        persons.forEach((p) => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+        <td>${p.first_name}</td>
+        <td>${p.last_name}</td>
+        <td>${p.pay}</td>
+        <td>${p.role_type}</td>
+        <td>${p.detail}</td>
+      `;
+          table.appendChild(row);
+        });
+      }
+
+      async function loadPersonDetails(personId) {
+        const res = await fetch(`/api/person/${personId}/movies`);
+        const movies = await res.json();
+
+        const table = document.getElementById("detailsTable");
+        table.innerHTML = `
+      <tr><th colspan="5">Movies Attached to Person ${personId}</th></tr>
+      <tr>
+        <th>Movie ID</th>
+        <th>Title</th>
+        <th>Release Date</th>
+        <th>Category</th>
+        <th>Rating</th>
+      </tr>
+    `;
+
+        movies.forEach((m) => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+        <td>${m.movie_id}</td>
+        <td>${m.title}</td>
+        <td>${m.release_date}</td>
+        <td>${m.category}</td>
+        <td>${m.rating}</td>
+      `;
+          table.appendChild(row);
+        });
+      }
+
+      loadMovies();
+      loadPersons();
+      loadMoviePersons();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Search Movies</title>
+    <link rel="stylesheet" href="style.css" />
+    <style>
+      .search-container {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        text-align: center;
+      }
+
+      select,
+      input {
+        width: 240px;
+        padding: 6px;
+        margin: 8px 0;
+      }
+
+      button {
+        padding: 8px 16px;
+        margin: 10px;
+      }
+
+      table {
+        width: 80%;
+        margin-top: 30px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <h1>Search Movies</h1>
+
+    <div class="search-container">
+      <h2>Movies by Producer</h2>
+      <select id="producerSelect"></select>
+      <button onclick="searchByProducer()">Search</button>
+
+      <h2>Movies by Director</h2>
+      <select id="directorSelect"></select>
+      <button onclick="searchByDirector()">Search</button>
+
+      <h2>Most Expensive Movie by Producer</h2>
+      <select id="producerSelect2"></select>
+      <button onclick="searchMostExpensive()">Search</button>
+
+      <h2>Movies Produced in a Year</h2>
+      <input type="number" id="yearInput" placeholder="Enter year" />
+      <button onclick="searchByYear()">Search</button>
+    </div>
+
+    <table id="resultsTable">
+      <tr>
+        <th>ID</th>
+        <th>Title</th>
+        <th>Release Date</th>
+        <th>Category</th>
+        <th>Rating</th>
+        <th>Runtime</th>
+      </tr>
+    </table>
+
+    <script>
+      async function loadPeople() {
+        const prodRes = await fetch("/api/producers");
+        const producers = await prodRes.json();
+
+        const prodSelects = [
+          document.getElementById("producerSelect"),
+          document.getElementById("producerSelect2"),
+        ];
+
+        prodSelects.forEach((drop) => {
+          drop.innerHTML = "<option value=''>-- Select Producer --</option>";
+          producers.forEach((pr) => {
+            const opt = document.createElement("option");
+            opt.value = pr.producer_id;
+            opt.textContent = `${pr.first_name} ${pr.last_name}`;
+            drop.appendChild(opt);
+          });
+        });
+
+        const dirRes = await fetch("/api/directors");
+        const directors = await dirRes.json();
+
+        const directorSelect = document.getElementById("directorSelect");
+        directorSelect.innerHTML =
+          "<option value=''>-- Select Director --</option>";
+
+        directors.forEach((d) => {
+          const opt = document.createElement("option");
+          opt.value = d.director_id;
+          opt.textContent = `${d.first_name} ${d.last_name}`;
+          directorSelect.appendChild(opt);
+        });
+      }
+
+      loadPeople();
+
+      function renderResults(rows) {
+        const table = document.getElementById("resultsTable");
+        table.innerHTML = `
+        <tr>
+          <th>ID</th><th>Title</th><th>Release Date</th>
+          <th>Category</th><th>Rating</th><th>Runtime</th>
+        </tr>
+        `;
+
+        rows.forEach((m) => {
+          const row = document.createElement("tr");
+          row.innerHTML = `
+            <td>${m.movie_id}</td>
+            <td>${m.title}</td>
+            <td>${m.release_date || ""}</td>
+            <td>${m.category || ""}</td>
+            <td>${m.rating || ""}</td>
+            <td>${m.run_time || ""}</td>
+          `;
+          table.appendChild(row);
+        });
+      }
+
+      async function searchByProducer() {
+        const id = document.getElementById("producerSelect").value;
+        if (!id) return alert("Select a producer");
+        const res = await fetch(`/api/search/movies-by-producer/${id}`);
+        renderResults(await res.json());
+      }
+
+      async function searchByDirector() {
+        const id = document.getElementById("directorSelect").value;
+        if (!id) return alert("Select a director");
+        const res = await fetch(`/api/search/movies-by-director/${id}`);
+        renderResults(await res.json());
+      }
+
+      async function searchMostExpensive() {
+        const id = document.getElementById("producerSelect2").value;
+        if (!id) return alert("Select a producer");
+        const res = await fetch(`/api/search/most-expensive/${id}`);
+        const movie = await res.json();
+        renderResults(movie ? [movie] : []);
+      }
+
+      async function searchByYear() {
+        const year = document.getElementById("yearInput").value;
+        if (!year) return alert("Enter a year");
+        const res = await fetch(`/api/search/movies-by-year/${year}`);
+        renderResults(await res.json());
+      }
+    </script>
+  </body>
+</html>
