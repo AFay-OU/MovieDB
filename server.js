@@ -243,6 +243,34 @@ app.delete("/api/movie-person", (req, res) => {
 });
 
 // Search
+app.get("/api/search/movies-by-actor/:actorId", (req, res) => {
+  const sql = `
+    SELECT m.*
+    FROM movie m
+    JOIN movie_person mp ON m.movie_id = mp.movie_id
+    JOIN actor a ON a.person_id = mp.person_id
+    WHERE a.actor_id = ?;
+  `;
+
+  db.all(sql, [req.params.actorId], (err, rows) =>
+    err ? res.status(500).json({ error: err.message }) : res.json(rows)
+  );
+});
+
+app.get("/api/search/movies-by-actress/:actressId", (req, res) => {
+  const sql = `
+    SELECT m.*
+    FROM movie m
+    JOIN movie_person mp ON m.movie_id = mp.movie_id
+    JOIN actress ac ON ac.person_id = mp.person_id
+    WHERE ac.actress_id = ?;
+  `;
+
+  db.all(sql, [req.params.actressId], (err, rows) =>
+    err ? res.status(500).json({ error: err.message }) : res.json(rows)
+  );
+});
+
 app.get("/api/search/movies-by-producer/:producerId", (req, res) => {
   const sql = `
     SELECT m.*
@@ -292,6 +320,40 @@ app.get("/api/search/movies-by-year/:year", (req, res) => {
     WHERE strftime('%Y', release_date) = ?;
   `;
   db.all(sql, [req.params.year], (err, rows) =>
+    err ? res.status(500).json({ error: err.message }) : res.json(rows)
+  );
+});
+
+app.get("/api/actors", (req, res) => {
+  const sql = `
+    SELECT a.actor_id,
+           p.person_id,
+           p.first_name,
+           p.last_name,
+           p.pay,
+           a.role
+    FROM actor a
+    JOIN person p ON p.person_id = a.person_id;
+  `;
+
+  db.all(sql, [], (err, rows) =>
+    err ? res.status(500).json({ error: err.message }) : res.json(rows)
+  );
+});
+
+app.get("/api/actresses", (req, res) => {
+  const sql = `
+    SELECT ac.actress_id,
+           p.person_id,
+           p.first_name,
+           p.last_name,
+           p.pay,
+           ac.role
+    FROM actress ac
+    JOIN person p ON p.person_id = ac.person_id;
+  `;
+
+  db.all(sql, [], (err, rows) =>
     err ? res.status(500).json({ error: err.message }) : res.json(rows)
   );
 });
