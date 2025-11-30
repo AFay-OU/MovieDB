@@ -40,24 +40,6 @@
     </div>
     <h1>Search Movies</h1>
 
-    <div class="search-container">
-      <h2>Movies by Producer</h2>
-      <select id="producerSelect"></select>
-      <button onclick="searchByProducer()">Search</button>
-
-      <h2>Movies by Director</h2>
-      <select id="directorSelect"></select>
-      <button onclick="searchByDirector()">Search</button>
-
-      <h2>Most Expensive Movie by Producer</h2>
-      <select id="producerSelect2"></select>
-      <button onclick="searchMostExpensive()">Search</button>
-
-      <h2>Movies Produced in a Year</h2>
-      <input type="number" id="yearInput" placeholder="Enter year" />
-      <button onclick="searchByYear()">Search</button>
-    </div>
-
     <table id="resultsTable">
       <tr>
         <th>ID</th>
@@ -69,8 +51,67 @@
       </tr>
     </table>
 
+    <div class="search-container">
+      <h2>Movies by Actors</h2>
+      <select id="actorSelect"></select>
+      <button onclick="searchByActor()">Search</button>
+
+      <h2>Movies by Actresses</h2>
+      <select id="actressSelect"></select>
+      <button onclick="searchByActress()">Search</button>
+
+      <h2>Movies by Producer</h2>
+      <select id="producerSelect"></select>
+      <button onclick="searchByProducer()">Search</button>
+
+      <h2>Movies by Director</h2>
+      <select id="directorSelect"></select>
+      <button onclick="searchByDirector()">Search</button>
+
+      <h2>Movies Produced in a Year</h2>
+      <input
+        type="number"
+        id="yearInput"
+        placeholder="Enter year"
+        min="1850"
+        max="3000"
+      />
+      <button onclick="searchByYear()">Search</button>
+
+      <h2>Most Expensive Movie by Producer</h2>
+      <select id="producerSelect2"></select>
+      <button onclick="searchMostExpensive()">Search</button>
+    </div>
+
     <script>
       async function loadPeople() {
+        const actorRes = await fetch("/api/actors");
+        const actors = await actorRes.json();
+
+        const actorSelect = document.getElementById("actorSelect");
+        actorSelect.innerHTML = "<option value=''>-- Select Actor --</option>";
+
+        actors.forEach((a) => {
+          const opt = document.createElement("option");
+          opt.value = a.actor_id;
+          opt.textContent = `${a.first_name} ${a.last_name}`;
+          actorSelect.appendChild(opt);
+        });
+
+        const actressRes = await fetch("/api/actresses");
+        const actresses = await actressRes.json();
+
+        const actressSelect = document.getElementById("actressSelect");
+        actressSelect.innerHTML =
+          "<option value=''>-- Select Actress --</option>";
+
+        actresses.forEach((a) => {
+          const opt = document.createElement("option");
+          opt.value = a.actress_id;
+          opt.textContent = `${a.first_name} ${a.last_name}`;
+          actressSelect.appendChild(opt);
+        });
+
         const prodRes = await fetch("/api/producers");
         const producers = await prodRes.json();
 
@@ -127,6 +168,20 @@
           `;
           table.appendChild(row);
         });
+      }
+
+      async function searchByActor() {
+        const id = document.getElementById("actorSelect").value;
+        if (!id) return alert("Select an actor");
+        const res = await fetch(`/api/search/movies-by-actor/${id}`);
+        renderResults(await res.json());
+      }
+
+      async function searchByActress() {
+        const id = document.getElementById("actressSelect").value;
+        if (!id) return alert("Select an actress");
+        const res = await fetch(`/api/search/movies-by-actress/${id}`);
+        renderResults(await res.json());
       }
 
       async function searchByProducer() {
