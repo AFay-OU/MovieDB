@@ -38,7 +38,8 @@ CREATE TABLE IF NOT EXISTS person (
   person_id INTEGER PRIMARY KEY AUTOINCREMENT,
   first_name TEXT NOT NULL,
   last_name TEXT NOT NULL,
-  pay REAL NOT NULL
+  pay REAL NOT NULL,
+  UNIQUE(first_name, last_name)
 );
 
 CREATE TABLE IF NOT EXISTS actor (
@@ -87,8 +88,19 @@ CREATE TABLE IF NOT EXISTS movie_person (
 
 // Executes the above SQL command
 db.exec(tables, (err) => {
-  if (err) console.error("Error creating tables:", err.message);
-  else console.log("Tables created.");
+  if (err) {
+    console.error("Error creating tables:", err.message);
+  } else {
+    console.log("Tables created.");
+
+db.run(`
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_person_name
+  ON person (first_name, last_name)
+  `, (err2) => {
+    if (err2) console.error("Error creating unique index:", err2.message);
+    else console.log("Unique index for person (first_name, last_name) is active.");
+  });
+}
 });
 
 // Helper functions
@@ -107,9 +119,17 @@ export function addPerson(values, callback) {
     INSERT INTO person (first_name, last_name, pay)
     VALUES (?, ?, ?)
   `;
+
   db.run(sql, values, function (err) {
-    callback(err, this?.lastID);
-  });
+
+    if (err) {
+      if (err.code === "SQLITE_CONSTRAINT" || err.code === "SQLITE_CONSTRAINT_UNIQUE") {
+        return callback({ duplicate: true }, null);
+    }
+    return callback(err, null);
+  }
+    return callback(null, this?.lastID )
+    });
 }
 
 export function linkMoviePerson(movieId, personId, callback) {
@@ -117,7 +137,19 @@ export function linkMoviePerson(movieId, personId, callback) {
     INSERT INTO movie_person (movie_id, person_id)
     VALUES (?, ?)
   `;
-  db.run(sql, [movieId, personId], callback);
+
+  db.run(sql, [movieId, personId], function (err) {
+    if (err) {
+      if (
+        err.code === "SQLITE_CONSTRAINT" ||
+        err.code === "SQLITE_CONSTRAINT_UNIQUE"
+      ) {
+        return callback({ duplicateLink: true }, null);
+      }
+      return callback(err, null);
+    }
+    return callback(null, true);
+  });
 }
 
 export function addJobRecord(table, data, callback) {
