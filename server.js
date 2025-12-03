@@ -22,7 +22,6 @@ app.post("/api/movie", (req, res) => {
   const { title, release_date, synopsis, rating, run_time, category } =
     req.body;
 
-  // Sample input check
   if (!title) return res.status(400).json({ error: "Title required" });
 
   addMovie(
@@ -297,6 +296,21 @@ app.get("/api/search/movies-by-director/:directorId", (req, res) => {
   );
 });
 
+// NEW: Search movies by writer
+app.get("/api/search/movies-by-writer/:writerId", (req, res) => {
+  const sql = `
+    SELECT m.*
+    FROM movie m
+    JOIN movie_person mp ON m.movie_id = mp.movie_id
+    JOIN writer w ON w.person_id = mp.person_id
+    WHERE w.writer_id = ?;
+  `;
+
+  db.all(sql, [req.params.writerId], (err, rows) =>
+    err ? res.status(500).json({ error: err.message }) : res.json(rows)
+  );
+});
+
 app.get("/api/search/most-expensive/:producerId", (req, res) => {
   const sql = `
     SELECT m.*, p.pay AS cost
@@ -392,7 +406,24 @@ app.get("/api/directors", (req, res) => {
   );
 });
 
-// Listen
+// ⭐ NEW: Writers dropdown list
+app.get("/api/writers", (req, res) => {
+  const sql = `
+    SELECT w.writer_id,
+           p.person_id,
+           p.first_name,
+           p.last_name,
+           p.pay,
+           w.contribution
+    FROM writer w
+    JOIN person p ON p.person_id = w.person_id;
+  `;
+
+  db.all(sql, [], (err, rows) =>
+    err ? res.status(500).json({ error: err.message }) : res.json(rows)
+  );
+});
+
 app.listen(3000, () => console.log("Server running at http://localhost:3000"));
 
 // Debug

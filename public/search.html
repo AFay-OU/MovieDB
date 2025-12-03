@@ -68,6 +68,12 @@
       <select id="directorSelect"></select>
       <button onclick="searchByDirector()">Search</button>
 
+      <!-- ⭐ ADDED: Search by Writer -->
+      <h2>Movies by Writer</h2>
+      <select id="writerSelect"></select>
+      <button onclick="searchByWriter()">Search</button>
+      <!-- END OF ADD -->
+
       <h2>Movies Produced in a Year</h2>
       <input
         type="number"
@@ -143,6 +149,21 @@
           opt.textContent = `${d.first_name} ${d.last_name}`;
           directorSelect.appendChild(opt);
         });
+
+        /*  ADDED: Load Writers */
+        const writerRes = await fetch("/api/writers");
+        const writers = await writerRes.json();
+
+        const writerSelect = document.getElementById("writerSelect");
+        writerSelect.innerHTML = "<option value=''>-- Select Writer --</option>";
+
+        writers.forEach((w) => {
+          const opt = document.createElement("option");
+          opt.value = w.writer_id;
+          opt.textContent = `${w.first_name} ${w.last_name}`;
+          writerSelect.appendChild(opt);
+        });
+        /* END ADD */
       }
 
       loadPeople();
@@ -197,6 +218,15 @@
         const res = await fetch(`/api/search/movies-by-director/${id}`);
         renderResults(await res.json());
       }
+
+      /*  ADDED: Search by Writer */
+      async function searchByWriter() {
+        const id = document.getElementById("writerSelect").value;
+        if (!id) return alert("Select a writer");
+        const res = await fetch(`/api/search/movies-by-writer/${id}`);
+        renderResults(await res.json());
+      }
+      /* END ADD */
 
       async function searchMostExpensive() {
         const id = document.getElementById("producerSelect2").value;
