@@ -9,9 +9,6 @@ import {
   deleteMovieAndLinks,
   deletePersonAndLinks,
   deleteAttachment,
-  updateMovie,
-  updatePerson,
-  updateJobRecord,
 } from "./db.js";
 import db from "./db.js";
 
@@ -212,7 +209,7 @@ app.post("/api/movie", (req, res) => {
   //sample input check
   if (!title) return res.status(400).json ({error: "Title Required" });
 
-  updateMovie(
+  addMovie(
     [title, release_date, synopsis, rating, run_time, category],
     (err, id) => {
       if (err) return res.status(500).json ({ error: err.message });
@@ -231,7 +228,7 @@ app.post("/api/person", async (req, res) => {
 
   try {
     const personId = await new Promise((resolve, reject) =>
-     updatePerson([person.first_name, person.last_name, person.pay], (err, id) =>
+     addPerson([person.first_name, person.last_name, person.pay], (err, id) =>
       err ? reject(err) : resolve(id)
      )
     );
@@ -257,7 +254,7 @@ app.post("/api/person", async (req, res) => {
     }
 
     await new Promise((resolve, reject) =>
-     updateJobRecord(table, { personId, field, value }, (err) =>
+     addJobRecord(table, { personId, field, value }, (err) =>
       err ? reject(err) : resolve()
      )
     );
