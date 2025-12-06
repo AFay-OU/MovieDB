@@ -92,7 +92,23 @@ app.post("/api/person", async (req, res) => {
       person_id: personId,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    if (err && err.duplicate) {
+      return res.status(409).json({
+        success: false,
+        message: "Person already exists.",
+      });
+    }
+
+    if (err && err.duplicatLink) {
+      return res.status(409).json({
+        success: false,
+        message: "Link between movie and person already exists.",
+      });
+    }
+    res.status(500).json({
+      success: false,
+      message: err.message,
+    });
   }
 });
 
@@ -100,23 +116,12 @@ app.post("/api/addMovieAndPerson", async (req, res) => {
   const { movie, person } = req.body;
 
   if (!movie.title)
-    return res.status(400).json({ error: "Movie title required." });
+    return res.status(400).json({
+      success: false,
+      error: "Movie title required.",
+    });
 
   try {
-    const movieId = await new Promise((resolve, reject) =>
-      addMovie(
-        [
-          movie.title,
-          movie.release_date,
-          movie.synopsis,
-          movie.rating,
-          movie.run_time,
-          movie.category,
-        ],
-        (err, id) => (err ? reject(err) : resolve(id))
-      )
-    );
-
     const personId = await new Promise((resolve, reject) =>
       addPerson([person.first_name, person.last_name, person.pay], (err, id) =>
         err ? reject(err) : resolve(id)
@@ -124,6 +129,7 @@ app.post("/api/addMovieAndPerson", async (req, res) => {
     );
 
     let table, field, value;
+
     if (person.type === "actor" || person.type === "actress") {
       table = person.type;
       field = "role";
@@ -138,9 +144,30 @@ app.post("/api/addMovieAndPerson", async (req, res) => {
       value = person.position;
     }
 
+    if (!value) {
+      return res.status(400).json({
+        success: false,
+        error: `Missing ${field} field.`,
+      });
+    }
+
     await new Promise((resolve, reject) =>
       addJobRecord(table, { personId, field, value }, (err) =>
         err ? reject(err) : resolve()
+      )
+    );
+
+    const movieId = await new Promise((resolve, reject) =>
+      addMovie(
+        [
+          movie.title,
+          movie.release_date,
+          movie.synopsis,
+          movie.rating,
+          movie.run_time,
+          movie.category,
+        ],
+        (err, id) => (err ? reject(err) : resolve(id))
       )
     );
 
@@ -151,12 +178,31 @@ app.post("/api/addMovieAndPerson", async (req, res) => {
     );
 
     res.json({
+      success: true,
       message: "Movie and person added successfully.",
       movie_id: movieId,
       person_id: personId,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    if (err && err.duplicate) {
+      return res.status(409).json({
+        success: false,
+        message: "Person already exists. Movie was not added.",
+      });
+    }
+
+    if (err && err.duplicateLink) {
+      return res.status(409).json({
+        success: false,
+        message: "Link between movie and person already exists.",
+      });
+    }
+    console.error("Error in /api/addMovieAndPerson:", err);
+    return res.status(500).json({
+      success: false,
+      message: "An error occurred while adding movie and person.",
+      error: err.message,
+    });
   }
 });
 
