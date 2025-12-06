@@ -9,6 +9,9 @@ import {
   deleteMovieAndLinks,
   deletePersonAndLinks,
   deleteAttachment,
+  updateMovie,
+  updatePerson,
+  updateJobRecord,
 } from "./db.js";
 import db from "./db.js";
 
@@ -153,6 +156,192 @@ app.post("/api/addMovieAndPerson", async (req, res) => {
     res.json({
       message: "Movie and person added successfully.",
       movie_id: movieId,
+      person_id: personId,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get("/api/movies", (req, res) => {
+  getMovies((err, rows) =>
+    err ? res.status(500).json({ error: err.message }) : res.json(rows)
+  );
+});
+
+app.get("/api/movie/:id/persons", (req, res) => {
+  const movieId = req.params.id;
+
+  const sql = `
+    SELECT 
+      p.first_name,
+      p.last_name,
+      p.pay,
+      CASE
+        WHEN a.actor_id IS NOT NULL THEN 'Actor'
+        WHEN ac.actress_id IS NOT NULL THEN 'Actress'
+        WHEN d.director_id IS NOT NULL THEN 'Director'
+        WHEN w.writer_id IS NOT NULL THEN 'Writer'
+        WHEN pr.producer_id IS NOT NULL THEN 'Producer'
+      END AS role_type,
+      COALESCE(a.role, ac.role, d.position, w.contribution, pr.position) AS detail
+    FROM movie_person mp
+    JOIN person p ON mp.person_id = p.person_id
+    LEFT JOIN actor a ON p.person_id = a.person_id
+    LEFT JOIN actress ac ON p.person_id = ac.person_id
+    LEFT JOIN director d ON p.person_id = d.person_id
+    LEFT JOIN writer w ON p.person_id = w.person_id
+    LEFT JOIN producer pr ON p.person_id = pr.person_id
+    WHERE mp.movie_id = ?;
+  `;
+
+  db.all(sql, [movieId], (err, rows) => {
+    if (err) {
+      console.error("PERSON LOOKUP ERROR:", err);
+      return res.status(500).json({ error: err.message });
+    }
+    res.json(rows);
+  });
+});
+
+// Update a Movie
+app.post("/api/movie", (req, res) => {
+  const { title, release_date, synopsis, rating, run_time, category } =
+   req.body;
+
+  //sample input check
+  if (!title) return res.status(400).json ({error: "Title Required" });
+
+  updateMovie(
+    [title, release_date, synopsis, rating, run_time, category],
+    (err, id) => {
+      if (err) return res.status(500).json ({ error: err.message });
+      res.json ({ movie_id: id });
+    }
+  );
+});
+
+//Update a Person
+app.post("/api/person", async (req, res) => {
+  const { person, movie_id } = req.body;
+
+  if (!person.first_name || !person.last_name || !person.pay || !person.type) {
+    return res.status(400).json({ error: "Incomplete person data. "});
+  }
+
+  try {
+    const personId = await new Promise((resolve, reject) =>
+     updatePerson([person.first_name, person.last_name, person.pay], (err, id) =>
+      err ? reject(err) : resolve(id)
+     )
+    );
+
+    let table, field, value;
+
+    if (person.type === "actor" || person.type === "actress") {
+      table = person.type;
+      field = "role";
+      value = person.role;
+    } else if (person.type === "writer") {
+      table = "writer";
+      field = "contribution";
+      value = person.contribution;
+    } else if (person.type === "director" || person.type === "producer") {
+      table = person.type;
+      field = "position";
+      value = person.position;
+    }
+
+    if (!value) {
+      return res.status(400).json({ error: `Missing ${field} field.`});
+    }
+
+    await new Promise((resolve, reject) =>
+     updateJobRecord(table, { personId, field, value }, (err) =>
+      err ? reject(err) : resolve()
+     )
+    );
+
+    if (movie_id) {
+      await new Promise((resolve, reject) =>
+       linkMoviePerson(movie_id, personId, (err) =>
+        err ? reject(err) : resolve()
+       )
+      );
+
+      return res.json({
+        message: "Person updated and linked to movie",
+        person_id: person_id, //might need to change this later
+      });
+    }
+
+    return res.json({
+      message: "Person updated (no new links to any movie).",
+      person_id: personId, //might need to change this later
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+//Update a Movie and Person
+app.post("/api/addMovieAndPerson", async (req, res) => {
+  const { movie, person } = req.body;
+
+  if (!movie.title)
+    return res.status(400).json({ error: "Movie title required." });
+
+  try {
+    const movieId = await new Promise((resolve, reject) =>
+      updateMovie(
+        [
+          movie.title,
+          movie.release_date,
+          movie.synopsis,
+          movie.rating,
+          movie.run_time,
+          movie.category,
+        ],
+        (err, id) => (err ? reject(err) : resolve(id))
+      )
+    );
+
+    const personId = await new Promise((resolve, reject) =>
+      updatePerson([person.first_name, person.last_name, person.pay], (err, id) =>
+        err ? reject(err) : resolve(id)
+      )
+    );
+
+    let table, field, value;
+    if (person.type === "actor" || person.type === "actress") {
+      table = person.type;
+      field = "role";
+      value = person.role;
+    } else if (person.type === "writer") {
+      table = "writer";
+      field = "contribution";
+      value = person.contribution;
+    } else if (person.type === "director" || person.type === "producer") {
+      table = person.type;
+      field = "position";
+      value = person.position;
+    }
+
+    await new Promise((resolve, reject) =>
+      updateJobRecord(table, { personId, field, value }, (err) =>
+        err ? reject(err) : resolve()
+      )
+    );
+
+    await new Promise((resolve, reject) =>
+      linkMoviePerson(movieId, personId, (err) =>
+        err ? reject(err) : resolve()
+      )
+    );
+
+    res.json({
+      message: "Movie and person added successfully.",
+      movie_id: movieId, //might need to change these 2 lines later
       person_id: personId,
     });
   } catch (err) {
