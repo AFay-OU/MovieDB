@@ -142,22 +142,10 @@ export function addPerson(values, callback) {
 
 export function linkMoviePerson(movieId, personId, callback) {
   const sql = `
-    INSERT INTO movie_person (movie_id, person_id)
+    INSERT OR IGNORE INTO movie_person (movie_id, person_id)
     VALUES (?, ?)
   `;
-
-  db.run(sql, [movieId, personId], function (err) {
-    if (err) {
-      if (
-        err.code === "SQLITE_CONSTRAINT" ||
-        err.code === "SQLITE_CONSTRAINT_UNIQUE"
-      ) {
-        return callback({ duplicateLink: true }, null);
-      }
-      return callback(err, null);
-    }
-    return callback(null, true);
-  });
+  db.run(sql, [movieId, personId], callback);
 }
 
 export function addJobRecord(table, data, callback) {
@@ -220,6 +208,53 @@ export function deleteAttachment(movieId, personId, callback) {
     WHERE movie_id = ? AND person_id = ?
   `;
   db.run(sql, [movieId, personId], callback);
+}
+
+// Update
+
+export function updateMovie(movieId, values, callback) {
+  const sql = `
+    UPDATE movie
+    SET title = ?, release_date = ?, synopsis = ?, rating = ?, run_time = ?, category = ?
+    WHERE movie_id = ?
+  `;
+
+  db.run(sql, [...values, movieId], function (err) {
+    callback(err, this?.changes);
+  });
+}
+
+export function updatePerson(personId, values, callback) {
+  const sql = `
+    UPDATE person
+    SET first_name = ?, last_name = ?, pay = ?
+    WHERE person_id = ?
+  `;
+
+  db.run(sql, [...values, personId], function (err) {
+    callback(err, this?.changes);
+  });
+}
+
+export function updateJobRecord(table, personId, field, value, callback) {
+  const sql = `
+    UPDATE ${table}
+    SET ${field} = ?
+    WHERE person_id = ?
+  `;
+
+  db.run(sql, [value, personId], function (err) {
+    callback(err, this?.changes);
+  });
+}
+
+export function roleExists(table, personId, callback) {
+  const sql = `SELECT 1 FROM ${table} WHERE person_id = ? LIMIT 1`;
+
+  db.get(sql, [personId], (err, row) => {
+    if (err) return callback(err, null);
+    callback(null, !!row);
+  });
 }
 
 // Export db const to be used elsewhere
