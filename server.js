@@ -436,31 +436,61 @@ app.get("/api/person/:id/movies", (req, res) => {
 });
 
 app.get("/api/actors", (req, res) => {
-  db.all("SELECT * FROM actor", [], (err, rows) =>
+  const sql = `
+    SELECT a.actor_id, a.person_id, a.role,
+           p.first_name, p.last_name
+    FROM actor a
+    JOIN person p ON a.person_id = p.person_id
+  `;
+  db.all(sql, [], (err, rows) =>
     err ? res.status(500).json({ error: err.message }) : res.json(rows)
   );
 });
 
 app.get("/api/actresses", (req, res) => {
-  db.all("SELECT * FROM actress", [], (err, rows) =>
+  const sql = `
+    SELECT ac.actress_id, ac.person_id, ac.role,
+           p.first_name, p.last_name
+    FROM actress ac
+    JOIN person p ON ac.person_id = p.person_id
+  `;
+  db.all(sql, [], (err, rows) =>
     err ? res.status(500).json({ error: err.message }) : res.json(rows)
   );
 });
 
 app.get("/api/writers", (req, res) => {
-  db.all("SELECT * FROM writer", [], (err, rows) =>
+  const sql = `
+    SELECT w.writer_id, w.person_id, w.contribution,
+           p.first_name, p.last_name
+    FROM writer w
+    JOIN person p ON w.person_id = p.person_id
+  `;
+  db.all(sql, [], (err, rows) =>
     err ? res.status(500).json({ error: err.message }) : res.json(rows)
   );
 });
 
 app.get("/api/directors", (req, res) => {
-  db.all("SELECT * FROM director", [], (err, rows) =>
+  const sql = `
+    SELECT d.director_id, d.person_id, d.position,
+           p.first_name, p.last_name
+    FROM director d
+    JOIN person p ON d.person_id = p.person_id
+  `;
+  db.all(sql, [], (err, rows) =>
     err ? res.status(500).json({ error: err.message }) : res.json(rows)
   );
 });
 
 app.get("/api/producers", (req, res) => {
-  db.all("SELECT * FROM producer", [], (err, rows) =>
+  const sql = `
+    SELECT pr.producer_id, pr.person_id, pr.position,
+           p.first_name, p.last_name
+    FROM producer pr
+    JOIN person p ON pr.person_id = p.person_id
+  `;
+  db.all(sql, [], (err, rows) =>
     err ? res.status(500).json({ error: err.message }) : res.json(rows)
   );
 });
