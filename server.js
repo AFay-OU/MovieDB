@@ -9,6 +9,10 @@ import {
   deleteMovieAndLinks,
   deletePersonAndLinks,
   deleteAttachment,
+  updateMovie,
+  updatePerson,
+  updateJobRecord,
+  roleExists,
 } from "./db.js";
 import db from "./db.js";
 
@@ -17,19 +21,17 @@ app.use(express.json());
 app.use(cors());
 app.use(express.static("public"));
 
-// Add a movie
 app.post("/api/movie", (req, res) => {
   const { title, release_date, synopsis, rating, run_time, category } =
     req.body;
 
-  // Sample input check
   if (!title) return res.status(400).json({ error: "Title required" });
 
   addMovie(
     [title, release_date, synopsis, rating, run_time, category],
     (err, id) => {
       if (err) return res.status(500).json({ error: err.message });
-      res.json({ movie_id: id });
+      res.json({ success: true, movie_id: id });
     }
   );
 });
@@ -64,9 +66,13 @@ app.post("/api/person", async (req, res) => {
       value = person.position;
     }
 
-    if (!value) {
-      return res.status(400).json({ error: `Missing ${field} field.` });
+    if (table && !value) {
+      return res.status(400).json({
+        error: `Missing '${field}' for ${person.type}.`,
+      });
     }
+
+    if (!value) return res.status(400).json({ error: `Missing ${field}.` });
 
     await new Promise((resolve, reject) =>
       addJobRecord(table, { personId, field, value }, (err) =>
@@ -82,33 +88,21 @@ app.post("/api/person", async (req, res) => {
       );
 
       return res.json({
+        success: true,
         message: "Person added and linked to movie.",
         person_id: personId,
       });
     }
 
     return res.json({
-      message: "Person added (not linked to any movie).",
+      success: true,
+      message: "Person added.",
       person_id: personId,
     });
   } catch (err) {
-    if (err && err.duplicate) {
-      return res.status(409).json({
-        success: false,
-        message: "Person already exists.",
-      });
-    }
-
-    if (err && err.duplicatLink) {
-      return res.status(409).json({
-        success: false,
-        message: "Link between movie and person already exists.",
-      });
-    }
-    res.status(500).json({
-      success: false,
-      message: err.message,
-    });
+    if (err.duplicate)
+      return res.status(409).json({ error: "Person already exists." });
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -116,10 +110,7 @@ app.post("/api/addMovieAndPerson", async (req, res) => {
   const { movie, person } = req.body;
 
   if (!movie.title)
-    return res.status(400).json({
-      success: false,
-      error: "Movie title required.",
-    });
+    return res.status(400).json({ error: "Movie title required." });
 
   try {
     const personId = await new Promise((resolve, reject) =>
@@ -144,12 +135,7 @@ app.post("/api/addMovieAndPerson", async (req, res) => {
       value = person.position;
     }
 
-    if (!value) {
-      return res.status(400).json({
-        success: false,
-        error: `Missing ${field} field.`,
-      });
-    }
+    if (!value) return res.status(400).json({ error: `Missing ${field}` });
 
     await new Promise((resolve, reject) =>
       addJobRecord(table, { personId, field, value }, (err) =>
@@ -157,6 +143,7 @@ app.post("/api/addMovieAndPerson", async (req, res) => {
       )
     );
 
+    // Add movie
     const movieId = await new Promise((resolve, reject) =>
       addMovie(
         [
@@ -184,25 +171,7 @@ app.post("/api/addMovieAndPerson", async (req, res) => {
       person_id: personId,
     });
   } catch (err) {
-    if (err && err.duplicate) {
-      return res.status(409).json({
-        success: false,
-        message: "Person already exists. Movie was not added.",
-      });
-    }
-
-    if (err && err.duplicateLink) {
-      return res.status(409).json({
-        success: false,
-        message: "Link between movie and person already exists.",
-      });
-    }
-    console.error("Error in /api/addMovieAndPerson:", err);
-    return res.status(500).json({
-      success: false,
-      message: "An error occurred while adding movie and person.",
-      error: err.message,
-    });
+    res.status(500).json({ error: err.message });
   }
 });
 
@@ -212,200 +181,43 @@ app.get("/api/movies", (req, res) => {
   );
 });
 
-app.get("/api/movie/:id/persons", (req, res) => {
-  const movieId = req.params.id;
+app.post("/api/link-person-to-movie", (req, res) => {
+  const { movie_id, person_id } = req.body;
 
-  const sql = `
-    SELECT 
-      p.first_name,
-      p.last_name,
-      p.pay,
-      CASE
-        WHEN a.actor_id IS NOT NULL THEN 'Actor'
-        WHEN ac.actress_id IS NOT NULL THEN 'Actress'
-        WHEN d.director_id IS NOT NULL THEN 'Director'
-        WHEN w.writer_id IS NOT NULL THEN 'Writer'
-        WHEN pr.producer_id IS NOT NULL THEN 'Producer'
-      END AS role_type,
-      COALESCE(a.role, ac.role, d.position, w.contribution, pr.position) AS detail
-    FROM movie_person mp
-    JOIN person p ON mp.person_id = p.person_id
-    LEFT JOIN actor a ON p.person_id = a.person_id
-    LEFT JOIN actress ac ON p.person_id = ac.person_id
-    LEFT JOIN director d ON p.person_id = d.person_id
-    LEFT JOIN writer w ON p.person_id = w.person_id
-    LEFT JOIN producer pr ON p.person_id = pr.person_id
-    WHERE mp.movie_id = ?;
-  `;
+  console.log("Link request:", { movie_id, person_id });
 
-  db.all(sql, [movieId], (err, rows) => {
+  if (!movie_id || !person_id) {
+    return res.status(400).json({ error: "movie_id and person_id required" });
+  }
+
+  linkMoviePerson(movie_id, person_id, (err) => {
     if (err) {
-      console.error("PERSON LOOKUP ERROR:", err);
-      return res.status(500).json({ error: err.message });
+      if (err.duplicateLink) {
+        return res
+          .status(200)
+          .json({ message: "Person already linked to this movie." });
+      }
+      if (err.foreignKey) {
+        return res.status(400).json({
+          error: "Invalid movie_id or person_id (foreign key error).",
+        });
+      }
+      console.error("Unexpected link error:", err);
+      return res.status(500).json({ error: err.message || "Link failed." });
     }
-    res.json(rows);
-  });
-});
-
-// Update a Movie
-app.post("/api/movie", (req, res) => {
-  const { title, release_date, synopsis, rating, run_time, category } =
-   req.body;
-
-  //sample input check
-  if (!title) return res.status(400).json ({error: "Title Required" });
-
-  addMovie(
-    [title, release_date, synopsis, rating, run_time, category],
-    (err, id) => {
-      if (err) return res.status(500).json ({ error: err.message });
-      res.json ({ movie_id: id });
-    }
-  );
-});
-
-//Update a Person
-app.post("/api/person", async (req, res) => {
-  const { person, movie_id } = req.body;
-
-  if (!person.first_name || !person.last_name || !person.pay || !person.type) {
-    return res.status(400).json({ error: "Incomplete person data. "});
-  }
-
-  try {
-    const personId = await new Promise((resolve, reject) =>
-     addPerson([person.first_name, person.last_name, person.pay], (err, id) =>
-      err ? reject(err) : resolve(id)
-     )
-    );
-
-    let table, field, value;
-
-    if (person.type === "actor" || person.type === "actress") {
-      table = person.type;
-      field = "role";
-      value = person.role;
-    } else if (person.type === "writer") {
-      table = "writer";
-      field = "contribution";
-      value = person.contribution;
-    } else if (person.type === "director" || person.type === "producer") {
-      table = person.type;
-      field = "position";
-      value = person.position;
-    }
-
-    if (!value) {
-      return res.status(400).json({ error: `Missing ${field} field.`});
-    }
-
-    await new Promise((resolve, reject) =>
-     addJobRecord(table, { personId, field, value }, (err) =>
-      err ? reject(err) : resolve()
-     )
-    );
-
-    if (movie_id) {
-      await new Promise((resolve, reject) =>
-       linkMoviePerson(movie_id, personId, (err) =>
-        err ? reject(err) : resolve()
-       )
-      );
-
-      return res.json({
-        message: "Person updated and linked to movie",
-        person_id: person_id, //might need to change this later
-      });
-    }
-
-    return res.json({
-      message: "Person updated (no new links to any movie).",
-      person_id: personId, //might need to change this later
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-//Update a Movie and Person
-app.post("/api/addMovieAndPerson", async (req, res) => {
-  const { movie, person } = req.body;
-
-  if (!movie.title)
-    return res.status(400).json({ error: "Movie title required." });
-
-  try {
-    const movieId = await new Promise((resolve, reject) =>
-      updateMovie(
-        [
-          movie.title,
-          movie.release_date,
-          movie.synopsis,
-          movie.rating,
-          movie.run_time,
-          movie.category,
-        ],
-        (err, id) => (err ? reject(err) : resolve(id))
-      )
-    );
-
-    const personId = await new Promise((resolve, reject) =>
-      updatePerson([person.first_name, person.last_name, person.pay], (err, id) =>
-        err ? reject(err) : resolve(id)
-      )
-    );
-
-    let table, field, value;
-    if (person.type === "actor" || person.type === "actress") {
-      table = person.type;
-      field = "role";
-      value = person.role;
-    } else if (person.type === "writer") {
-      table = "writer";
-      field = "contribution";
-      value = person.contribution;
-    } else if (person.type === "director" || person.type === "producer") {
-      table = person.type;
-      field = "position";
-      value = person.position;
-    }
-
-    await new Promise((resolve, reject) =>
-      updateJobRecord(table, { personId, field, value }, (err) =>
-        err ? reject(err) : resolve()
-      )
-    );
-
-    await new Promise((resolve, reject) =>
-      linkMoviePerson(movieId, personId, (err) =>
-        err ? reject(err) : resolve()
-      )
-    );
 
     res.json({
-      message: "Movie and person added successfully.",
-      movie_id: movieId, //might need to change these 2 lines later
-      person_id: personId,
+      success: true,
+      message: "Person successfully linked to movie.",
     });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-app.get("/api/movies", (req, res) => {
-  getMovies((err, rows) =>
-    err ? res.status(500).json({ error: err.message }) : res.json(rows)
-  );
+  });
 });
 
 app.get("/api/movie/:id/persons", (req, res) => {
   const movieId = req.params.id;
 
   const sql = `
-    SELECT 
-      p.first_name,
-      p.last_name,
-      p.pay,
+    SELECT p.*, 
       CASE
         WHEN a.actor_id IS NOT NULL THEN 'Actor'
         WHEN ac.actress_id IS NOT NULL THEN 'Actress'
@@ -424,57 +236,118 @@ app.get("/api/movie/:id/persons", (req, res) => {
     WHERE mp.movie_id = ?;
   `;
 
-  db.all(sql, [movieId], (err, rows) => {
-    if (err) {
-      console.error("PERSON LOOKUP ERROR:", err);
-      return res.status(500).json({ error: err.message });
-    }
-    res.json(rows);
-  });
+  db.all(sql, [movieId], (err, rows) =>
+    err ? res.status(500).json({ error: err.message }) : res.json(rows)
+  );
 });
 
-// Delete
-app.delete("/api/movie/:id", (req, res) => {
+app.put("/api/movie/:id", (req, res) => {
   const movieId = req.params.id;
+  const { title, release_date, synopsis, rating, run_time, category } =
+    req.body;
 
-  deleteMovieAndLinks(movieId, (err) => {
-    if (err) {
-      console.error("DELETE MOVIE ERROR:", err);
-      return res.status(500).json({ error: "Failed to delete movie." });
+  if (!title) return res.status(400).json({ error: "Title required." });
+
+  updateMovie(
+    movieId,
+    [title, release_date, synopsis, rating, run_time, category],
+    (err, changes) => {
+      if (err) return res.status(500).json({ error: err.message });
+      res.json({ success: true, message: "Movie updated." });
     }
-    res.json({ message: `Movie ${movieId} deleted.` });
+  );
+});
+
+app.put("/api/person/:id", async (req, res) => {
+  const personId = req.params.id;
+  const person = req.body;
+
+  if (!person.first_name || !person.last_name || !person.pay)
+    return res.status(400).json({ error: "Missing fields." });
+
+  try {
+    await new Promise((resolve, reject) =>
+      updatePerson(
+        personId,
+        [person.first_name, person.last_name, person.pay],
+        (err) => (err ? reject(err) : resolve())
+      )
+    );
+
+    if (person.type) {
+      let table, field, value;
+
+      if (person.type === "actor" || person.type === "actress") {
+        table = person.type;
+        field = "role";
+        value = person.role;
+      } else if (person.type === "writer") {
+        table = "writer";
+        field = "contribution";
+        value = person.contribution;
+      } else if (person.type === "director" || person.type === "producer") {
+        table = person.type;
+        field = "position";
+        value = person.position;
+      }
+
+      const exists = await new Promise((resolve, reject) =>
+        roleExists(table, personId, (err, r) =>
+          err ? reject(err) : resolve(r)
+        )
+      );
+
+      if (exists) {
+        if (!value) {
+          const row = await new Promise((resolve, reject) =>
+            db.get(
+              `SELECT ${field} FROM ${table} WHERE person_id = ?`,
+              [personId],
+              (err, row) => (err ? reject(err) : resolve(row))
+            )
+          );
+          value = row ? row[field] : null;
+        }
+
+        await new Promise((resolve, reject) =>
+          updateJobRecord(table, personId, field, value, (err) =>
+            err ? reject(err) : resolve()
+          )
+        );
+      }
+    }
+
+    res.json({ success: true, message: "Person updated." });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete("/api/movie/:id", (req, res) => {
+  deleteMovieAndLinks(req.params.id, (err) => {
+    if (err) return res.status(500).json({ error: "Failed to delete movie." });
+    res.json({ success: true, message: "Movie deleted." });
   });
 });
 
 app.delete("/api/person/:id", (req, res) => {
-  const personId = req.params.id;
-
-  deletePersonAndLinks(personId, (err) => {
-    if (err) {
-      console.error("DELETE PERSON ERROR:", err);
-      return res.status(500).json({ error: "Failed to delete person." });
-    }
-    res.json({ message: `Person ${personId} deleted.` });
+  deletePersonAndLinks(req.params.id, (err) => {
+    if (err) return res.status(500).json({ error: "Failed to delete person." });
+    res.json({ success: true, message: "Person deleted." });
   });
 });
 
 app.delete("/api/movie-person", (req, res) => {
   const { movie_id, person_id } = req.body;
-
-  if (!movie_id || !person_id) {
-    return res.status(400).json({ error: "Movie ID and person ID required." });
-  }
+  if (!movie_id || !person_id)
+    return res.status(400).json({ error: "IDs required." });
 
   deleteAttachment(movie_id, person_id, (err) => {
-    if (err) {
-      console.error("DELETE ATTACHMENT ERROR:", err);
-      return res.status(500).json({ error: "Failed to delete attachment." });
-    }
-    res.json({ message: "Attachment removed." });
+    if (err) return res.status(500).json({ error: "Failed to remove link." });
+    res.json({ success: true, message: "Link removed." });
   });
 });
 
-// Search
 app.get("/api/search/movies-by-actor/:actorId", (req, res) => {
   const sql = `
     SELECT m.*
@@ -483,7 +356,6 @@ app.get("/api/search/movies-by-actor/:actorId", (req, res) => {
     JOIN actor a ON a.person_id = mp.person_id
     WHERE a.actor_id = ?;
   `;
-
   db.all(sql, [req.params.actorId], (err, rows) =>
     err ? res.status(500).json({ error: err.message }) : res.json(rows)
   );
@@ -497,7 +369,6 @@ app.get("/api/search/movies-by-actress/:actressId", (req, res) => {
     JOIN actress ac ON ac.person_id = mp.person_id
     WHERE ac.actress_id = ?;
   `;
-
   db.all(sql, [req.params.actressId], (err, rows) =>
     err ? res.status(500).json({ error: err.message }) : res.json(rows)
   );
@@ -529,22 +400,6 @@ app.get("/api/search/movies-by-director/:directorId", (req, res) => {
   );
 });
 
-app.get("/api/search/most-expensive/:producerId", (req, res) => {
-  const sql = `
-    SELECT m.*, p.pay AS cost
-    FROM movie m
-    JOIN movie_person mp ON m.movie_id = mp.movie_id
-    JOIN person p ON p.person_id = mp.person_id
-    JOIN producer pr ON pr.person_id = p.person_id
-    WHERE pr.producer_id = ?
-    ORDER BY cost DESC
-    LIMIT 1;
-  `;
-  db.get(sql, [req.params.producerId], (err, row) =>
-    err ? res.status(500).json({ error: err.message }) : res.json(row)
-  );
-});
-
 app.get("/api/search/movies-by-year/:year", (req, res) => {
   const sql = `
     SELECT *
@@ -556,103 +411,58 @@ app.get("/api/search/movies-by-year/:year", (req, res) => {
   );
 });
 
-app.get("/api/actors", (req, res) => {
-  const sql = `
-    SELECT a.actor_id,
-           p.person_id,
-           p.first_name,
-           p.last_name,
-           p.pay,
-           a.role
-    FROM actor a
-    JOIN person p ON p.person_id = a.person_id;
-  `;
-
-  db.all(sql, [], (err, rows) =>
-    err ? res.status(500).json({ error: err.message }) : res.json(rows)
-  );
-});
-
-app.get("/api/actresses", (req, res) => {
-  const sql = `
-    SELECT ac.actress_id,
-           p.person_id,
-           p.first_name,
-           p.last_name,
-           p.pay,
-           ac.role
-    FROM actress ac
-    JOIN person p ON p.person_id = ac.person_id;
-  `;
-
-  db.all(sql, [], (err, rows) =>
-    err ? res.status(500).json({ error: err.message }) : res.json(rows)
-  );
-});
-
-app.get("/api/producers", (req, res) => {
-  const sql = `
-    SELECT pr.producer_id,
-           p.person_id,
-           p.first_name,
-           p.last_name,
-           p.pay,
-           pr.position
-    FROM producer pr
-    JOIN person p ON p.person_id = pr.person_id;
-  `;
-
-  db.all(sql, [], (err, rows) =>
-    err ? res.status(500).json({ error: err.message }) : res.json(rows)
-  );
-});
-
-app.get("/api/directors", (req, res) => {
-  const sql = `
-    SELECT d.director_id,
-           p.person_id,
-           p.first_name,
-           p.last_name,
-           p.pay,
-           d.position
-    FROM director d
-    JOIN person p ON p.person_id = d.person_id;
-  `;
-
-  db.all(sql, [], (err, rows) =>
-    err ? res.status(500).json({ error: err.message }) : res.json(rows)
-  );
-});
-
-// Listen
-app.listen(3000, () => console.log("Server running at http://localhost:3000"));
-
-// Debug
 app.get("/api/persons", (req, res) => {
-  const sql = `SELECT * FROM person`;
-  db.all(sql, [], (err, rows) =>
+  db.all("SELECT * FROM person", [], (err, rows) =>
     err ? res.status(500).json({ error: err.message }) : res.json(rows)
   );
 });
 
 app.get("/api/movie-person", (req, res) => {
-  const sql = `SELECT * FROM movie_person`;
-  db.all(sql, [], (err, rows) =>
+  db.all("SELECT * FROM movie_person", [], (err, rows) =>
     err ? res.status(500).json({ error: err.message }) : res.json(rows)
   );
 });
 
 app.get("/api/person/:id/movies", (req, res) => {
-  const personId = req.params.id;
-
   const sql = `
     SELECT m.*
     FROM movie_person mp
-    JOIN movie m ON mp.movie_id = m.movie_id
+    JOIN movie m ON m.movie_id = mp.movie_id
     WHERE mp.person_id = ?;
   `;
-
-  db.all(sql, [personId], (err, rows) =>
+  db.all(sql, [req.params.id], (err, rows) =>
     err ? res.status(500).json({ error: err.message }) : res.json(rows)
   );
 });
+
+app.get("/api/actors", (req, res) => {
+  db.all("SELECT * FROM actor", [], (err, rows) =>
+    err ? res.status(500).json({ error: err.message }) : res.json(rows)
+  );
+});
+
+app.get("/api/actresses", (req, res) => {
+  db.all("SELECT * FROM actress", [], (err, rows) =>
+    err ? res.status(500).json({ error: err.message }) : res.json(rows)
+  );
+});
+
+app.get("/api/writers", (req, res) => {
+  db.all("SELECT * FROM writer", [], (err, rows) =>
+    err ? res.status(500).json({ error: err.message }) : res.json(rows)
+  );
+});
+
+app.get("/api/directors", (req, res) => {
+  db.all("SELECT * FROM director", [], (err, rows) =>
+    err ? res.status(500).json({ error: err.message }) : res.json(rows)
+  );
+});
+
+app.get("/api/producers", (req, res) => {
+  db.all("SELECT * FROM producer", [], (err, rows) =>
+    err ? res.status(500).json({ error: err.message }) : res.json(rows)
+  );
+});
+
+app.listen(3000, () => console.log("Server running at http://localhost:3000"));
