@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link href="style.css" rel="stylesheet" />
+    <link rel="icon" type="image/png" href="Clapper.png" />
+    <title>Update Movie</title>
+  </head>
+
+  <body>
+    <div class="back-container">
+      <button class="back-button" onclick="window.location.href='index.html'">
+        Back
+      </button>
+    </div>
+    <h1>Update Data</h1>
+
+    <div class="form-container">
+      <label><strong>Select Action:</strong></label>
+      <select id="modeSelect" onchange="updateMode()">
+        <option value="movie">Update Movie</option>
+        <option value="person">Update Person</option>
+        <option value="both">Update Movie + Person</option>
+      </select>
+
+      <hr />
+
+      <div id="movieSection">
+        <h2>Update Movie</h2>
+        <select id="movieSelect">
+          <option value="">-- Select Movie --</option>
+        </select>
+
+        <label>Title:</label>
+        <input type="text" id="title" />
+
+        <label>Release Date:</label>
+        <input type="date" id="release_date" />
+
+        <label>Runtime (minutes):</label>
+        <input type="number" id="run_time" min="1" />
+
+        <label>Rating (0 - 100):</label>
+        <input type="number" id="rating" min="0" max="100" />
+
+        <label>Category:</label>
+        <input type="text" id="category" />
+
+        <label>Synopsis:</label>
+        <textarea id="synopsis"></textarea>
+      </div>
+
+      <div id="personSection" style="display: none">
+        <h2>Update Person</h2>
+        <select id="personSelect">
+          <option value="">-- Select Person --</option>
+        </select>
+
+        <label>Person Type:</label>
+        <select id="person_type" onchange="loadPersonFields()">
+          <option value="">-- Select Type --</option>
+          <option value="actor">Actor</option>
+          <option value="actress">Actress</option>
+          <option value="director">Director</option>
+          <option value="writer">Writer</option>
+          <option value="producer">Producer</option>
+        </select>
+
+        <label>First Name:</label>
+        <input type="text" id="first_name" />
+
+        <label>Last Name:</label>
+        <input type="text" id="last_name" />
+
+        <label>Pay Amount:</label>
+        <input type="number" id="pay" min="0" />
+
+        <label>Add Person to Existing Movie (optional):</label>
+        <select id="movieSelect_personLink">
+          <option value="">-- Do Not Link to a Movie --</option>
+        </select>
+
+        <div id="role_fields"></div>
+      </div>
+
+      <hr />
+
+      <button onclick="updateData()">Update</button>
+
+      <script>
+        async function loadMovies() {
+          const res = await fetch("/api/movies");
+          const movies = await res.json();
+
+          const dropdown = document.getElementById("movieSelect");
+          dropdown.innerHTML = `<option value="">-- Select Movie --</option>`;
+
+          movies.forEach((m) => {
+            const opt = document.createElement("option");
+            opt.value = m.movie_id;
+            opt.textContent = `${m.title} (${m.movie_id})`;
+            dropdown.appendChild(opt);
+          });
+
+          const linkDD = document.getElementById("movieSelect_personLink");
+          linkDD.innerHTML = `<option value="">-- Do Not Link to a Movie --</option>`;
+          movies.forEach((m) => {
+            const opt = document.createElement("option");
+            opt.value = m.movie_id;
+            opt.textContent = `${m.title} (${m.movie_id})`;
+            linkDD.appendChild(opt);
+          });
+        }
+
+        async function loadPersons() {
+          const res = await fetch("/api/persons");
+          const persons = await res.json();
+
+          const dropdown = document.getElementById("personSelect");
+          dropdown.innerHTML = `<option value="">-- Select Person --</option>`;
+
+          persons.forEach((p) => {
+            const opt = document.createElement("option");
+            opt.value = p.person_id;
+            opt.textContent = `${p.first_name} ${p.last_name} (${p.person_id})`;
+            dropdown.appendChild(opt);
+          });
+        }
+
+        loadMovies();
+        loadPersons();
+
+        function updateMode() {
+          const mode = document.getElementById("modeSelect").value;
+
+          const movieSection = document.getElementById("movieSection");
+          const personSection = document.getElementById("personSection");
+
+          if (mode === "movie") {
+            movieSection.style.display = "block";
+            personSection.style.display = "none";
+          } else if (mode === "person") {
+            movieSection.style.display = "none";
+            personSection.style.display = "block";
+          } else if (mode === "both") {
+            movieSection.style.display = "block";
+            personSection.style.display = "block";
+          }
+        }
+
+        document
+          .getElementById("movieSelect")
+          .addEventListener("change", async () => {
+            const id = document.getElementById("movieSelect").value;
+            if (!id) return clearMovieFields();
+
+            const res = await fetch("/api/movies");
+            const movies = await res.json();
+            const movie = movies.find((m) => m.movie_id == id);
+
+            if (!movie) return;
+
+            document.getElementById("title").value = movie.title || "";
+            document.getElementById("release_date").value =
+              movie.release_date || "";
+            document.getElementById("run_time").value = movie.run_time || "";
+            document.getElementById("rating").value = movie.rating || "";
+            document.getElementById("category").value = movie.category || "";
+            document.getElementById("synopsis").value = movie.synopsis || "";
+          });
+
+        function clearMovieFields() {
+          document.getElementById("title").value = "";
+          document.getElementById("release_date").value = "";
+          document.getElementById("run_time").value = "";
+          document.getElementById("rating").value = "";
+          document.getElementById("category").value = "";
+          document.getElementById("synopsis").value = "";
+        }
+
+        document
+          .getElementById("personSelect")
+          .addEventListener("change", async () => {
+            await loadMovies();
+            const id = document.getElementById("personSelect").value;
+            if (!id) return clearPersonFields();
+
+            const res = await fetch("/api/persons");
+            const persons = await res.json();
+            const person = persons.find((p) => p.person_id == id);
+
+            if (!person) return;
+
+            document.getElementById("first_name").value =
+              person.first_name || "";
+            document.getElementById("last_name").value = person.last_name || "";
+            document.getElementById("pay").value = person.pay || "";
+
+            const roleRes = await fetch(`/api/person/${id}/movies`);
+            const roleDetailsRes = await fetch(`/api/movie-person`);
+
+            const linkedMovies = await fetch(`/api/person/${id}/movies`).then(
+              (r) => r.json()
+            );
+
+            if (linkedMovies.length > 0) {
+              document.getElementById("movieSelect_personLink").value =
+                linkedMovies[0].movie_id;
+            } else {
+              document.getElementById("movieSelect_personLink").value = "";
+            }
+
+            const [actors, actresses, writers, directors, producers] =
+              await Promise.all([
+                fetch("/api/actors").then((r) => r.json()),
+                fetch("/api/actresses").then((r) => r.json()),
+                fetch("/api/writers")
+                  .then((r) => r.json())
+                  .catch(() => []),
+                fetch("/api/directors").then((r) => r.json()),
+                fetch("/api/producers").then((r) => r.json()),
+              ]);
+
+            let type = "";
+            let roleValue = "";
+
+            const matchRole = (arr, fieldName, t) => {
+              const row = arr.find((x) => x.person_id == id);
+              if (row) {
+                type = t;
+                roleValue = row[fieldName];
+              }
+            };
+
+            matchRole(actors, "role", "actor");
+            matchRole(actresses, "role", "actress");
+            matchRole(writers, "contribution", "writer");
+            matchRole(directors, "position", "director");
+            matchRole(producers, "position", "producer");
+
+            if (type) {
+              document.getElementById("person_type").value = type;
+              loadPersonFields();
+
+              if (type === "actor" || type === "actress") {
+                document.getElementById("role").value = roleValue;
+              } else if (type === "writer") {
+                document.getElementById("contribution").value = roleValue;
+              } else {
+                document.getElementById("position").value = roleValue;
+              }
+            }
+          });
+
+        function clearPersonFields() {
+          document.getElementById("person_type").value = "";
+          document.getElementById("first_name").value = "";
+          document.getElementById("last_name").value = "";
+          document.getElementById("pay").value = "";
+          document.getElementById("role_fields").innerHTML = "";
+        }
+
+        async function updateData() {
+          const mode = document.getElementById("modeSelect").value;
+
+          const movieId = document.getElementById("movieSelect").value;
+          const personId = document.getElementById("personSelect").value;
+
+          const movie = {
+            title: document.getElementById("title").value,
+            release_date: document.getElementById("release_date").value,
+            synopsis: document.getElementById("synopsis").value,
+            rating: document.getElementById("rating").value,
+            run_time: document.getElementById("run_time").value,
+            category: document.getElementById("category").value,
+          };
+
+          const person = {
+            type: document.getElementById("person_type").value,
+            first_name: document.getElementById("first_name").value,
+            last_name: document.getElementById("last_name").value,
+            pay: document.getElementById("pay").value,
+            role: document.getElementById("role")?.value || undefined,
+            contribution:
+              document.getElementById("contribution")?.value || undefined,
+            position: document.getElementById("position")?.value || undefined,
+          };
+
+          if (mode === "movie") return updateMovieOnly(movieId, movie);
+          if (mode === "person") return updatePersonOnly(personId, person);
+          if (mode === "both") {
+            await updateMovieOnly(movieId, movie);
+            await updatePersonOnly(personId, person);
+            return alert("Movie + Person updated.");
+          }
+        }
+
+        async function updateMovieOnly(id, movie) {
+          if (!id) return alert("Choose a movie first.");
+
+          const res = await fetch(`/api/movie/${id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(movie),
+          });
+
+          const data = await res.json();
+          alert(data.message || "Movie updated.");
+          clearMovieForm();
+          document.getElementById("movieSelect").value = "";
+        }
+
+        async function updatePersonOnly(id, person) {
+          if (!id) return alert("Choose a person first.");
+
+          const movieSelect = document.getElementById("movieSelect_personLink");
+          const newMovieIdValue = movieSelect.value;
+          const newMovieId = newMovieIdValue ? Number(newMovieIdValue) : null;
+
+          const personRes = await fetch(`/api/person/${id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(person),
+          });
+
+          const personData = await personRes.json().catch(() => ({}));
+
+          if (!personRes.ok) {
+            console.error("Update person failed:", personData);
+            alert(personData.error || "Failed to update person.");
+            return;
+          }
+
+          const oldMovies = await fetch(`/api/person/${id}/movies`).then((r) =>
+            r.json()
+          );
+
+          for (const m of oldMovies) {
+            await fetch(`/api/movie-person`, {
+              method: "DELETE",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ movie_id: m.movie_id, person_id: id }),
+            });
+          }
+
+          if (newMovieId !== null) {
+            const linkRes = await fetch("/api/link-person-to-movie", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                movie_id: newMovieId,
+                person_id: Number(id),
+              }),
+            });
+
+            const linkData = await linkRes.json().catch(() => ({}));
+
+            if (!linkRes.ok) {
+              console.error("Link error:", linkData);
+              alert(
+                linkData.error ||
+                  linkData.message ||
+                  "Failed to link person to selected movie."
+              );
+              return;
+            }
+          }
+
+          alert("Person updated successfully.");
+          clearPersonForm();
+          document.getElementById("personSelect").value = "";
+          document.getElementById("movieSelect_personLink").value = "";
+        }
+
+        function clearMovieForm() {
+          document.getElementById("title").value = "";
+          document.getElementById("release_date").value = "";
+          document.getElementById("run_time").value = "";
+          document.getElementById("rating").value = "";
+          document.getElementById("category").value = "";
+          document.getElementById("synopsis").value = "";
+        }
+
+        function clearPersonForm() {
+          document.getElementById("person_type").value = "";
+          document.getElementById("first_name").value = "";
+          document.getElementById("last_name").value = "";
+          document.getElementById("pay").value = "";
+          document.getElementById("role_fields").innerHTML = "";
+        }
+      </script>
+    </div>
+  </body>
+</html>

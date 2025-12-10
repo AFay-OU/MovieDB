@@ -186,6 +186,7 @@
 
         const data = await res.json();
         alert("Movie added with ID: " + data.movie_id);
+        clearMovieForm();
       }
 
       async function submitPersonOnly(person) {
@@ -210,6 +211,8 @@
         }
 
         alert(data.message || "Person added.");
+        clearPersonForm();
+        document.getElementById("movieSelect").value = "";
       }
 
       async function submitMovieAndPerson(movie, person) {
@@ -231,6 +234,26 @@
           return;
         }
         alert(data.message || "Movie and Person added.");
+        clearMovieForm();
+        clearPersonForm();
+        document.getElementById("movieSelect").value = "";
+      }
+
+      function clearMovieForm() {
+        document.getElementById("title").value = "";
+        document.getElementById("release_date").value = "";
+        document.getElementById("run_time").value = "";
+        document.getElementById("rating").value = "";
+        document.getElementById("category").value = "";
+        document.getElementById("synopsis").value = "";
+      }
+
+      function clearPersonForm() {
+        document.getElementById("person_type").value = "";
+        document.getElementById("first_name").value = "";
+        document.getElementById("last_name").value = "";
+        document.getElementById("pay").value = "";
+        document.getElementById("role_fields").innerHTML = "";
       }
     </script>
   </body>
