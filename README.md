@@ -1,4 +1,4 @@
-# Movie DB
+# Movie DB 
 
 A Javascript/HTML project implementing SQL functions
 
